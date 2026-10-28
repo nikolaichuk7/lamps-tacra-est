@@ -61,3 +61,38 @@ binding = {
   method: "binding-input",
   hash: "sha512",
 }
+
+encrypted-credential-bundle = {
+  container: "hpke-base-signed",
+  suite: {
+    kem: "MLKEM768-P256",
+    kdf: "HKDF-SHA256",
+    aead: "AES-256-GCM",
+    sig: "ECDSA-P256-SHA256",
+  },
+  enc: text .b64u bytes,
+  ciphertext: text .b64u bytes,
+  aad: {
+    group_id: text,
+    target: text,
+    ? handle: text .b64u bytes,
+    ? credential_hint: text,
+  },
+  signature: text .b64u bytes,
+}
+
+credential-bundle = {
+  credential_items: [+ credential-item],
+  ? metadata: { * text => any },
+}
+
+credential-item = {
+  type: text,
+  value: text,
+  ? format: text,
+  ? kid: text,
+  ? purpose: [+ text],
+  ? algorithm: text,
+  ? exportable: bool,
+  ? shared: bool,
+}
