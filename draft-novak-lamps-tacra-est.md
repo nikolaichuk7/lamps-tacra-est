@@ -46,6 +46,7 @@ author:
 
 normative:
   RFC4648:
+  RFC5198: NET-UNICODE
   RFC6838:
   RFC7030: EST
   RFC8259:
@@ -247,7 +248,10 @@ The first leg of both modes is where the Attester initiates Remote Attestation b
 
 Query parameters:
 
-* `target`: the Target of Initiate-Credential-Acquisition (Section 5.1 of {{TACRA}}). The client URI-encodes it; the EST Server compares the decoded UTF-8 string.
+* `target`: the Target of Initiate-Credential-Acquisition (Section 5.1 of {{TACRA}}), an octet string.
+  In this profile a configured name is UTF-8 in Normalization Form C ({{RFC5198}}), a URI for instance.
+  The client percent-encodes that string in the query.
+  The EST Server decodes it and compares the octets.
 * `credential_type`: the Credential Type the Attester plans to use with this Target ({{credential-type}}). If omitted, the EST Server returns the mode and algorithms its policy sets for the Target.
 
 * If the EST Client already knows all the information the Attester needs to proceed, i.e., it is already configured for an absent Freshness kind (`absent-timestamp`, `absent-none`, or `absent-epoch`), and it knows what Credential Acquisition Mode is expected, and which ciphers to use, it MAY complete `attest-initiate` locally and, in that case, MUST NOT contact the EST Server.
@@ -369,7 +373,8 @@ The Credential Authority or the Secret Vault recomputes the digest from the requ
 The three octet strings of that construction are, in this profile:
 
 * `freshness`: the freshness element of the request, the octets of `handle`. For `present-nonce` and `present-epoch` that is the Freshness Handle `attest-initiate` returned. For `absent-epoch` it is the epoch marker the Attester holds. For `absent-timestamp` it is the Attester's timestamp, 8 octets, as {{TACRA}} encodes it. For `absent-none` it is empty, and `handle` is absent.
-* `target`: the UTF-8 encoding of the `target` member, used as an exact octet string.
+* `target`: the octets of the `target` member, the Target octet string of {{TACRA}}, neither recoded nor normalized.
+  The member carries the same string as the Target of the `attest-initiate`, on the wire or completed locally.
 * `subject`: for Enrollment, the DER encoding of the PKCS#10 CSR, the octets of `csr`. For Retrieval, CEKpub as the request carries it, the octets of `cek_pub`, in the encoding of its KEM ({{TACRA}}).
 
 The digest is SHA-512, as {{TACRA}} sets for a freshness input of 64 octets, which REPORT_DATA of AMD SEV-SNP and REPORTDATA of Intel TDX are.
@@ -504,6 +509,7 @@ The `group_id` the container carries ({{bundle}}) is the one the Secret Vault ch
 The EST Server returns the container the Secret Vault produced, the `encrypted-credential-bundle` of Section "Sealing the Released Credential" of {{TACRA}}, as the body of media type `application/est-attest-bundle+json`.
 The EST Client and the EST Server MUST treat it as opaque.
 That section specifies the container: its members, its suites, the `info` and the associated data of its HPKE sealing, and its plaintext, the Credential Bundle.
+In its `aad`, `target` is the base64url of the Target octets of the request, the octets of the `target` member of {{attest-retrieve}}.
 This profile adds nothing to it.
 The Secret Vault names in `acceptable_cek` the suites it accepts ({{alg-tokens}}), the mandatory suite of {{TACRA}} among them, and the Attester generates its CEK for one of them.
 
@@ -925,7 +931,7 @@ Content-Type: application/est-attest-bundle+json
   "aad": {
     "group_id": "0156b1ec5fc72a6ccc6c04b33e23cb114c9e19979cd3fe68bdd\
     7e9495544a46c",
-    "target": "https://ledger-nonce.tacra.example",
+    "target": "aHR0cHM6Ly9sZWRnZXItbm9uY2UudGFjcmEuZXhhbXBsZQ",
     "handle": "JRAAJxYwTJ-tsqU1Kqk_PQpA...",
     "credential_hint": "payments.workload.tacra.example"
   }
