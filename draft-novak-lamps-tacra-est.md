@@ -356,7 +356,7 @@ Fields:
 * `mode` (string, REQUIRED): `enroll` or `retrieve`
 * `acceptable_cek` (array, REQUIRED when `mode` is `retrieve` and absent otherwise): the CEK suites the Secret Vault accepts, tokens of {{alg-tokens}}, at least one
 * `acceptable_csk` (array, REQUIRED when `mode` is `enroll` and absent otherwise): the CSK algorithms the Credential Authority accepts, tokens of {{alg-tokens}}, at least one
-* `acceptable_evidence` (array, OPTIONAL): the Evidence formats the EST Server forwards, each named by its media type ({{alg-tokens}}). A request of the second leg MAY name the format of its Evidence in `profile`, one of them. When the list is absent, or `attest-initiate` was completed locally, the EST Client sends the format its configuration names, or none
+* `acceptable_evidence` (array, OPTIONAL): the Evidence formats the EST Server forwards, each named by its media type ({{alg-tokens}}). A request of the second leg MAY name the format of its Evidence in `profile`, one of them. When the list is absent, or `attest-initiate` was completed locally, the EST Client sends no `profile`
 
 For `present-nonce`, the Freshness Handle originator MUST ensure uniqueness and MUST correlate the second-leg request with the Handle from this `attest-initiate`.
 For `present-epoch`, it checks that the Handle is still the current epoch marker ({{TACRA}}).
@@ -444,7 +444,7 @@ Fields:
 * handle (bytes): the freshness element ({{est-binding}}) - REQUIRED when `freshness_kind` is not `absent-none` and MUST be absent otherwise. For `present-nonce` and `present-epoch` it MUST equal the Freshness Handle returned by `attest-initiate`. For `absent-timestamp` it is the 8-octet timestamp and for `absent-epoch` the locally held epoch marker. Its size is 16 to 64 octets for `present-nonce`, 8 to 64 for `present-epoch` and `absent-epoch`, and 8 for `absent-timestamp` ({{cddl}}).
 * csr (bytes, REQUIRED): DER-encoded PKCS#10 CSR
 * evidence (bytes, REQUIRED): MUST be bound to the Freshness returned by `attest-initiate`, if any
-* profile (string, OPTIONAL): the media type of `evidence`, one of the `acceptable_evidence` of the `attest-initiate` ({{initiation-response}}). If absent, the EST Server forwards the Evidence as it is, and the Verifier recognizes its format. A format the EST Server does not accept is refused with 415 Unsupported Media Type
+* profile (string, OPTIONAL): the media type of `evidence`, one of the `acceptable_evidence` of the `attest-initiate` ({{initiation-response}}). It MUST be absent when that response carried no `acceptable_evidence` or `attest-initiate` was completed locally, and MUST be one of the listed tokens otherwise. The EST Server refuses another value with 415 Unsupported Media Type, as a format it does not accept. If absent, the EST Server forwards the Evidence as it is, and the Verifier recognizes its format. A format the EST Server does not accept is refused with 415 Unsupported Media Type
 * binding (object, REQUIRED): declares how the CSR key is bound to Evidence
 * credential_type (string, OPTIONAL): `x509` or `wic` ({{credential-type}}). If absent, the client takes what the Credential Authority mints
 * credential_hint (string, OPTIONAL): Credential Hint supplied by the Attester; the Credential Authority MAY use it, ignore it, or reject the request
@@ -484,7 +484,7 @@ Fields:
 * handle (bytes): the freshness element ({{est-binding}}) - REQUIRED when `freshness_kind` is not `absent-none` and MUST be absent otherwise. For `present-nonce` and `present-epoch` it MUST equal the Freshness Handle returned by `attest-initiate`. For `absent-timestamp` it is the 8-octet timestamp and for `absent-epoch` the locally held epoch marker. Its size is 16 to 64 octets for `present-nonce`, 8 to 64 for `present-epoch` and `absent-epoch`, and 8 for `absent-timestamp` ({{cddl}}).
 * evidence (bytes, REQUIRED) -- MUST include CEKpub; MUST be bound to the Freshness returned by `attest-initiate`, if any
 * cek_pub (bytes, REQUIRED): CEKpub in the encoding of its KEM ({{TACRA}}), to which the Secret Vault seals the bundle
-* profile (string, OPTIONAL): the media type of `evidence`, one of the `acceptable_evidence` of the `attest-initiate` ({{initiation-response}}). If absent, the EST Server forwards the Evidence as it is, and the Verifier recognizes its format. A format the EST Server does not accept is refused with 415 Unsupported Media Type
+* profile (string, OPTIONAL): the media type of `evidence`, one of the `acceptable_evidence` of the `attest-initiate` ({{initiation-response}}). It MUST be absent when that response carried no `acceptable_evidence` or `attest-initiate` was completed locally, and MUST be one of the listed tokens otherwise. The EST Server refuses another value with 415 Unsupported Media Type, as a format it does not accept. If absent, the EST Server forwards the Evidence as it is, and the Verifier recognizes its format. A format the EST Server does not accept is refused with 415 Unsupported Media Type
 * binding (object, REQUIRED): declares how CEKpub is bound to Evidence
 * credential_type (string, OPTIONAL): one of the tokens of {{credential-type}}. If absent, the client takes what the Secret Vault releases
 * credential_hint (string, OPTIONAL): Credential Hint supplied by the Attester; the RATS Relying Party (Secret Vault or Credential Authority) MAY use it, ignore it, or reject the request
@@ -542,7 +542,7 @@ An error response carries one of the status codes below, and a human-readable bo
 * 404 Not Found: a `target` the EST Server does not serve (Section 15.5.5 of {{RFC9110}}: the query is part of the target URI, and a request of the second leg names the same `target`)
 * 406 Not Acceptable: a `credential_type` the RATS Relying Party does not serve for the `target` (Section 15.5.7 of {{RFC9110}}). The body names the Credential Types it serves for that `target`
 * 413 Content Too Large: a request larger than the server takes (Section 15.5.14 of {{RFC9110}})
-* 415 Unsupported Media Type: a request not of the resource's media type ({{media-types}}), or Evidence of a format that is not accepted
+* 415 Unsupported Media Type: a request not of the resource's media type ({{media-types}}), or Evidence of a format that is not accepted, a `profile` the `attest-initiate` response did not list among them
 * 429 Too Many Requests: rate limiting (Section 4 of {{RFC6585}})
 * 500 Internal Server Error: internal error
 * 502 Bad Gateway: the RATS Relying Party did not answer, or answered with a message the EST Server cannot pass on
