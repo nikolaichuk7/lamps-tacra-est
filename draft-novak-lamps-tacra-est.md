@@ -36,7 +36,7 @@ author:
 
  - ins: H. Birkholz
    name: Henk Birkholz
-   org:  Fraunhofer SIT
+   org: Fraunhofer SIT
    email: Henk.Birkholz@ietf.contact
 
  - ins: S. Nikolaichuk
@@ -264,7 +264,7 @@ Query parameters:
 
 A Credential Authority or Secret Vault issues or releases credentials for a Target per its policy for that Target, since the Target only recognizes credentials from an issuer it already trusts.
 The Target itself takes no part in this profile: it is the RATS-unaware Relying Party of {{TACRA}}, named in the request and in the binding.
-* If the second leg fails because a `present-epoch` moved or a `present-nonce` is no longer valid, the Attester retries `attest-initiate`.
+If the second leg fails because a `present-epoch` moved or a `present-nonce` is no longer valid, the Attester retries `attest-initiate`.
 
 ## attest-enroll {#attest-enroll}
 
@@ -325,6 +325,7 @@ As each EST message type has its own media type (Section 3.2.4 of {{RFC7030}}), 
 
 A client MUST send a POST of the resource's media type.
 An `attest-initiate` GET has no body; the client SHOULD set Accept to `application/est-attest-initiate+json`.
+An `attest-initiate` GET for `present-nonce` is not idempotent: each one mints a Handle, as the nonce resource of {{ATTESTATION-FRESHNESS}} does.
 An EST Server responds to a request of another media type with 415 (Unsupported Media Type) and SHOULD name the resource's media type in an Accept header field (Section 15.5.16 of {{RFC9110}}).
 
 ## Message Definitions {#cddl}
@@ -351,7 +352,7 @@ Fields:
     * `present-nonce`: single-use Freshness Handle; embed it in Evidence
     * `present-epoch`: current epoch marker as Freshness Handle; embed it in Evidence; retry `attest-initiate` if the epoch moved
 * `handle` (bytes, 8 to 64 octets): Freshness Handle, REQUIRED for `present-nonce` and `present-epoch`, and MUST be absent otherwise ({{attest-initiate}}). A `present-nonce` Handle is a nonce as {{TACRA}} specifies: 16 to 64 octets, at least 128 bits of entropy, issued once and not reused
-* `expires_in` (integer, OPTIONAL): seconds until a `present-nonce` or `present-epoch` Handle is no longer valid, the `expiry` of {{ATTESTATION-FRESHNESS}}
+* `expires_in` (integer, OPTIONAL): seconds until a `present-nonce` or `present-epoch` Handle is no longer valid, the `expiry` of {{ATTESTATION-FRESHNESS}}. The Handle originator SHOULD NOT set it below 60 seconds ({{TACRA}})
 * `max_age` (integer, OPTIONAL): for `absent-timestamp`, the maximum Evidence age in seconds acceptable to the Verifier or RATS Relying Party
 * `mode` (string, REQUIRED): `enroll` or `retrieve`
 * `acceptable_cek` (array, REQUIRED when `mode` is `retrieve` and absent otherwise): the CEK suites the Secret Vault accepts, tokens of {{alg-tokens}}, at least one
@@ -414,6 +415,7 @@ A Credential Type the RATS Relying Party does not serve is refused with 406 Not 
 
 `acceptable_csk`, `acceptable_cek` and `acceptable_evidence` are arrays of ASCII tokens, and `profile` is one such token.
 This document defines them.
+Further tokens, for other CSK algorithms, digests and freshness inputs, are left for a later revision.
 
 CSK algorithms, for Enrollment:
 
@@ -805,7 +807,8 @@ Change controller:
 
 These examples are informative.
 They are exchanges recorded on 29 October 2026 between an EST Client and an EST Server that implement this profile, on an AMD SEV-SNP guest, with the mandatory CEK suite.
-The Targets, the Handles and the structures are as they crossed the wire.
+The Targets, the Handles and the structures are as they crossed the wire, with long base64url values shortened to their first 24 characters.
+An EST Server that uses a path segment of Section 3.2.2 of {{RFC7030}} serves the same resources under it, `/.well-known/est/arbitraryLabel1/attest-initiate` for instance.
 The base64url values are cut to their first 24 characters and marked `...`, and the Host header names the EST Server as this document's examples do.
 Lines longer than 69 characters are folded as {{RFC8792}} describes.
 
