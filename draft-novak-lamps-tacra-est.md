@@ -534,7 +534,7 @@ A variant in which the EST Server receives a plaintext secret from the Secret Va
 
 # Error Handling {#errors}
 
-An error response carries one of the status codes below, and a human-readable body as a simpleenroll error does (Section 4.2.3 of {{RFC7030}}, updated by Section 5.1 of {{RFC8951}}):
+An error response carries one of the status codes below, and a human-readable body of media type `text/plain`, as a simpleenroll error does (Section 4.2.3 of {{RFC7030}}, updated by Section 5.1 of {{RFC8951}}):
 
 * 400 Bad Request: a request that does not match its definition ({{cddl}}), or an `attest-initiate` with no `target`. A binding digest that does not recompute ({{est-binding}}). A `present-nonce` Handle that no `attest-initiate` returned, that has expired or was used before, or a `present-epoch` marker that has moved. A Credential Hint the policy does not know and does not ignore. A request that differs from the `attest-initiate` that returned its Handle, or one to the resource of the other `mode` ({{enrollment-processing}}, {{retrieval-processing}})
 * 401 Unauthorized: missing/invalid authentication required by deployment policy
@@ -860,7 +860,6 @@ Content-Type: application/est-attest-enroll+json
 
 HTTP/1.1 200 OK
 Content-Type: application/pkcs7-mime; smime-type=certs-only
-Content-Transfer-Encoding: base64
 
 MIICswYJKoZIhvcNAQcCoIICpDCCAqACAQExADAL...
 ~~~
