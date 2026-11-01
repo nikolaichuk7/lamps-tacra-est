@@ -10,7 +10,11 @@ attestation-initiation-response = {
 }
 
 initiation-freshness = (
-  freshness_kind: "present-nonce" / "present-epoch",
+  freshness_kind: "present-nonce",
+  handle: text .b64u (bytes .size (16..64)),
+  ? expires_in: uint,
+//
+  freshness_kind: "present-epoch",
   handle: text .b64u (bytes .size (8..64)),
   ? expires_in: uint,
 //
@@ -52,9 +56,14 @@ request-common = (
 request-freshness = (
   freshness_kind: "absent-none"
 //
-  freshness_kind: "absent-timestamp" / "absent-epoch"
-                / "present-nonce" / "present-epoch",
-  handle: text .b64u bytes,
+  freshness_kind: "absent-timestamp",
+  handle: text .b64u (bytes .size 8),
+//
+  freshness_kind: "absent-epoch" / "present-epoch",
+  handle: text .b64u (bytes .size (8..64)),
+//
+  freshness_kind: "present-nonce",
+  handle: text .b64u (bytes .size (16..64)),
 )
 
 binding = {

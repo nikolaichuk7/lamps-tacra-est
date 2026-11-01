@@ -36,7 +36,7 @@ author:
 
  - ins: H. Birkholz
    name: Henk Birkholz
-   org:  Fraunhofer SIT
+   org: Fraunhofer SIT
    email: Henk.Birkholz@ietf.contact
 
  - ins: S. Nikolaichuk
@@ -46,6 +46,7 @@ author:
 
 normative:
   RFC4648:
+  RFC5198: NET-UNICODE
   RFC6838:
   RFC7030: EST
   RFC8259:
@@ -247,7 +248,10 @@ The first leg of both modes is where the Attester initiates Remote Attestation b
 
 Query parameters:
 
-* `target`: the Target of Initiate-Credential-Acquisition (Section 5.1 of {{TACRA}}). The client URI-encodes it; the EST Server compares the decoded UTF-8 string.
+* `target`: the Target of Initiate-Credential-Acquisition (Section 5.1 of {{TACRA}}), an octet string.
+  In this profile a configured name is UTF-8 in Normalization Form C ({{RFC5198}}), a URI for instance.
+  The client percent-encodes that string in the query.
+  The EST Server decodes it and compares the octets.
 * `credential_type`: the Credential Type the Attester plans to use with this Target ({{credential-type}}). If omitted, the EST Server returns the mode and algorithms its policy sets for the Target.
 
 * If the EST Client already knows all the information the Attester needs to proceed, i.e., it is already configured for an absent Freshness kind (`absent-timestamp`, `absent-none`, or `absent-epoch`), and it knows what Credential Acquisition Mode is expected, and which ciphers to use, it MAY complete `attest-initiate` locally and, in that case, MUST NOT contact the EST Server.
@@ -260,7 +264,7 @@ Query parameters:
 
 A Credential Authority or Secret Vault issues or releases credentials for a Target per its policy for that Target, since the Target only recognizes credentials from an issuer it already trusts.
 The Target itself takes no part in this profile: it is the RATS-unaware Relying Party of {{TACRA}}, named in the request and in the binding.
-* If the second leg fails because a `present-epoch` moved or a `present-nonce` is no longer valid, the Attester retries `attest-initiate`.
+If the second leg fails because a `present-epoch` moved or a `present-nonce` is no longer valid, the Attester retries `attest-initiate`.
 
 ## attest-enroll {#attest-enroll}
 
@@ -321,6 +325,7 @@ As each EST message type has its own media type (Section 3.2.4 of {{RFC7030}}), 
 
 A client MUST send a POST of the resource's media type.
 An `attest-initiate` GET has no body; the client SHOULD set Accept to `application/est-attest-initiate+json`.
+An `attest-initiate` GET for `present-nonce` is not idempotent: each one mints a Handle, as the nonce resource of {{ATTESTATION-FRESHNESS}} does.
 An EST Server responds to a request of another media type with 415 (Unsupported Media Type) and SHOULD name the resource's media type in an Accept header field (Section 15.5.16 of {{RFC9110}}).
 
 ## Message Definitions {#cddl}
@@ -347,12 +352,12 @@ Fields:
     * `present-nonce`: single-use Freshness Handle; embed it in Evidence
     * `present-epoch`: current epoch marker as Freshness Handle; embed it in Evidence; retry `attest-initiate` if the epoch moved
 * `handle` (bytes, 8 to 64 octets): Freshness Handle, REQUIRED for `present-nonce` and `present-epoch`, and MUST be absent otherwise ({{attest-initiate}}). A `present-nonce` Handle is a nonce as {{TACRA}} specifies: 16 to 64 octets, at least 128 bits of entropy, issued once and not reused
-* `expires_in` (integer, OPTIONAL): seconds until a `present-nonce` or `present-epoch` Handle is no longer valid, the `expiry` of {{ATTESTATION-FRESHNESS}}
+* `expires_in` (integer, OPTIONAL): seconds until a `present-nonce` or `present-epoch` Handle is no longer valid, the `expiry` of {{ATTESTATION-FRESHNESS}}. The Handle originator SHOULD NOT set it below 60 seconds ({{TACRA}})
 * `max_age` (integer, OPTIONAL): for `absent-timestamp`, the maximum Evidence age in seconds acceptable to the Verifier or RATS Relying Party
 * `mode` (string, REQUIRED): `enroll` or `retrieve`
 * `acceptable_cek` (array, REQUIRED when `mode` is `retrieve` and absent otherwise): the CEK suites the Secret Vault accepts, tokens of {{alg-tokens}}, at least one
 * `acceptable_csk` (array, REQUIRED when `mode` is `enroll` and absent otherwise): the CSK algorithms the Credential Authority accepts, tokens of {{alg-tokens}}, at least one
-* `acceptable_evidence` (array, OPTIONAL): the Evidence formats the EST Server forwards, each named by its media type ({{alg-tokens}}). A request of the second leg MAY name the format of its Evidence in `profile`, one of them. When the list is absent, or `attest-initiate` was completed locally, the EST Client sends the format its configuration names, or none
+* `acceptable_evidence` (array, OPTIONAL): the Evidence formats the EST Server forwards, each named by its media type ({{alg-tokens}}). A request of the second leg MAY name the format of its Evidence in `profile`, one of them. When the list is absent, or `attest-initiate` was completed locally, the EST Client sends no `profile`
 
 For `present-nonce`, the Freshness Handle originator MUST ensure uniqueness and MUST correlate the second-leg request with the Handle from this `attest-initiate`.
 For `present-epoch`, it checks that the Handle is still the current epoch marker ({{TACRA}}).
@@ -369,8 +374,9 @@ The Credential Authority or the Secret Vault recomputes the digest from the requ
 The three octet strings of that construction are, in this profile:
 
 * `freshness`: the freshness element of the request, the octets of `handle`. For `present-nonce` and `present-epoch` that is the Freshness Handle `attest-initiate` returned. For `absent-epoch` it is the epoch marker the Attester holds. For `absent-timestamp` it is the Attester's timestamp, 8 octets, as {{TACRA}} encodes it. For `absent-none` it is empty, and `handle` is absent.
-* `target`: the UTF-8 encoding of the `target` member, used as an exact octet string.
-* `subject`: for Enrollment, the DER encoding of the PKCS#10 CSR, the octets of `csr`. For Retrieval, CEKpub as the request carries it, the octets of `cek_pub`, in the encoding of its KEM ({{TACRA}}).
+* `target`: the octets of the `target` member, the Target octet string of {{TACRA}}, neither recoded nor normalized.
+  The member carries the same string as the Target of the `attest-initiate`, on the wire or completed locally.
+* `subject`: for Enrollment, the DER encoding of the PKCS#10 CSR, the octets of `csr`. For Retrieval, CEKpub as the request carries it, the octets of `cek_pub`, in the encoding of its KEM in Section "Sealing the Released Credential" of {{TACRA}}.
 
 The digest is SHA-512, as {{TACRA}} sets for a freshness input of 64 octets, which REPORT_DATA of AMD SEV-SNP and REPORTDATA of Intel TDX are.
 A platform whose freshness input is not 64 octets is outside this document's mandatory method.
@@ -409,6 +415,7 @@ A Credential Type the RATS Relying Party does not serve is refused with 406 Not 
 
 `acceptable_csk`, `acceptable_cek` and `acceptable_evidence` are arrays of ASCII tokens, and `profile` is one such token.
 This document defines them.
+Further tokens, for other CSK algorithms, digests and freshness inputs, are left for a later revision.
 
 CSK algorithms, for Enrollment:
 
@@ -436,10 +443,10 @@ Fields:
 
 * target (string, REQUIRED): the Target of Enroll-Credential (Section 5.2 of {{TACRA}})
 * freshness_kind (string, REQUIRED): MUST match the preceding `attest-initiate` response, or the configuration under which the EST Client completed `attest-initiate` locally ({{attest-initiate}})
-* handle (bytes): the freshness element ({{est-binding}}) - REQUIRED when `freshness_kind` is not `absent-none` and MUST be absent otherwise. For `present-nonce` and `present-epoch` it MUST equal the Freshness Handle returned by `attest-initiate`. For `absent-timestamp` it is the 8-octet timestamp and for `absent-epoch` the locally held epoch marker.
+* handle (bytes): the freshness element ({{est-binding}}) - REQUIRED when `freshness_kind` is not `absent-none` and MUST be absent otherwise. For `present-nonce` and `present-epoch` it MUST equal the Freshness Handle returned by `attest-initiate`. For `absent-timestamp` it is the 8-octet timestamp and for `absent-epoch` the locally held epoch marker. Its size is 16 to 64 octets for `present-nonce`, 8 to 64 for `present-epoch` and `absent-epoch`, and 8 for `absent-timestamp` ({{cddl}}).
 * csr (bytes, REQUIRED): DER-encoded PKCS#10 CSR
 * evidence (bytes, REQUIRED): MUST be bound to the Freshness returned by `attest-initiate`, if any
-* profile (string, OPTIONAL): the media type of `evidence`, one of the `acceptable_evidence` of the `attest-initiate` ({{initiation-response}}). If absent, the EST Server forwards the Evidence as it is, and the Verifier recognizes its format. A format the EST Server does not accept is refused with 415 Unsupported Media Type
+* profile (string, OPTIONAL): the media type of `evidence`, one of the `acceptable_evidence` of the `attest-initiate` ({{initiation-response}}). It MUST be absent when that response carried no `acceptable_evidence` or `attest-initiate` was completed locally, and MUST be one of the listed tokens otherwise. The EST Server refuses another value with 415 Unsupported Media Type, as a format it does not accept. If absent, the EST Server forwards the Evidence as it is, and the Verifier recognizes its format. A format the EST Server does not accept is refused with 415 Unsupported Media Type
 * binding (object, REQUIRED): declares how the CSR key is bound to Evidence
 * credential_type (string, OPTIONAL): `x509` or `wic` ({{credential-type}}). If absent, the client takes what the Credential Authority mints
 * credential_hint (string, OPTIONAL): Credential Hint supplied by the Attester; the Credential Authority MAY use it, ignore it, or reject the request
@@ -460,7 +467,7 @@ The `binding` object ({{cddl}}) is as {{est-binding}} defines it.
 Upon receiving AttestedEnrollmentRequest, the EST Server MUST:
 
 1. Validate syntax, media type, and size limits.
-2. Check that a Credential Authority serves this `target` and `credential_type`, and that the `mode` that `attest-initiate` reports for them ({{initiation-response}}) is `enroll`. Refuse the request with 400 Bad Request when a Secret Vault serves them.
+2. Check that a Credential Authority serves this `target` and `credential_type`, and that the `mode` the EST Server's configuration sets for them, which `attest-initiate` reports ({{initiation-response}}), is `enroll`. Refuse the request with 400 Bad Request when a Secret Vault serves them.
 3. For `present-nonce`, correlate `handle` with the `attest-initiate` that returned it. Refuse the request with 400 Bad Request when no `attest-initiate` returned this Handle, when it has expired or was used before, or when its `target` or `freshness_kind` differ from the corresponding `attest-initiate`. Refuse it likewise when `credential_type` is carried on one leg and not the other, or with another value. A `present-nonce` Handle is single-use. For `present-epoch`, `handle` is the epoch marker that every `attest-initiate` of the epoch returned for this `target`, and it serves all requests during that epoch. Refuse the request with 400 Bad Request when the marker has moved. For the `absent-*` Freshness Kinds no Handle was returned, and the RATS Relying Party checks the freshness element under the Freshness Kind its policy sets for the Target ({{TACRA}}). This correlation keeps the two legs of one exchange together at the EST Server. It is not authorization: the Credential Authority takes the Freshness Kind from its policy for the Target, recomputes the digest and decides ({{TACRA}}).
 4. Passport: forward Evidence to the Verifier and obtain Attestation Results. Background Check: skip this step; the Credential Authority obtains Attestation Results itself.
 5. Forward the CSR and Attestation Results (Passport) or the CSR and Evidence (Background Check) to the Credential Authority, which verifies PoP and authorizes issuance.
@@ -476,10 +483,10 @@ Fields:
 
 * target (string, REQUIRED): the Target of Retrieve-Credential (Section 5.3 of {{TACRA}})
 * freshness_kind (string, REQUIRED): MUST match the preceding `attest-initiate` response, or the configuration under which the EST Client completed `attest-initiate` locally ({{attest-initiate}})
-* handle (bytes): the freshness element ({{est-binding}}) - REQUIRED when `freshness_kind` is not `absent-none` and MUST be absent otherwise. For `present-nonce` and `present-epoch` it MUST equal the Freshness Handle returned by `attest-initiate`. For `absent-timestamp` it is the 8-octet timestamp and for `absent-epoch` the locally held epoch marker.
+* handle (bytes): the freshness element ({{est-binding}}) - REQUIRED when `freshness_kind` is not `absent-none` and MUST be absent otherwise. For `present-nonce` and `present-epoch` it MUST equal the Freshness Handle returned by `attest-initiate`. For `absent-timestamp` it is the 8-octet timestamp and for `absent-epoch` the locally held epoch marker. Its size is 16 to 64 octets for `present-nonce`, 8 to 64 for `present-epoch` and `absent-epoch`, and 8 for `absent-timestamp` ({{cddl}}).
 * evidence (bytes, REQUIRED) -- MUST include CEKpub; MUST be bound to the Freshness returned by `attest-initiate`, if any
-* cek_pub (bytes, REQUIRED): CEKpub in the encoding of its KEM ({{TACRA}}), to which the Secret Vault seals the bundle
-* profile (string, OPTIONAL): the media type of `evidence`, one of the `acceptable_evidence` of the `attest-initiate` ({{initiation-response}}). If absent, the EST Server forwards the Evidence as it is, and the Verifier recognizes its format. A format the EST Server does not accept is refused with 415 Unsupported Media Type
+* cek_pub (bytes, REQUIRED): CEKpub in the encoding of its KEM in Section "Sealing the Released Credential" of {{TACRA}}, to which the Secret Vault seals the bundle
+* profile (string, OPTIONAL): the media type of `evidence`, one of the `acceptable_evidence` of the `attest-initiate` ({{initiation-response}}). It MUST be absent when that response carried no `acceptable_evidence` or `attest-initiate` was completed locally, and MUST be one of the listed tokens otherwise. The EST Server refuses another value with 415 Unsupported Media Type, as a format it does not accept. If absent, the EST Server forwards the Evidence as it is, and the Verifier recognizes its format. A format the EST Server does not accept is refused with 415 Unsupported Media Type
 * binding (object, REQUIRED): declares how CEKpub is bound to Evidence
 * credential_type (string, OPTIONAL): one of the tokens of {{credential-type}}. If absent, the client takes what the Secret Vault releases
 * credential_hint (string, OPTIONAL): Credential Hint supplied by the Attester; the RATS Relying Party (Secret Vault or Credential Authority) MAY use it, ignore it, or reject the request
@@ -504,6 +511,7 @@ The `group_id` the container carries ({{bundle}}) is the one the Secret Vault ch
 The EST Server returns the container the Secret Vault produced, the `encrypted-credential-bundle` of Section "Sealing the Released Credential" of {{TACRA}}, as the body of media type `application/est-attest-bundle+json`.
 The EST Client and the EST Server MUST treat it as opaque.
 That section specifies the container: its members, its suites, the `info` and the associated data of its HPKE sealing, and its plaintext, the Credential Bundle.
+In its `aad`, `target` is the base64url of the Target octets of the request, the octets of the `target` member of {{attest-retrieve}}.
 This profile adds nothing to it.
 The Secret Vault names in `acceptable_cek` the suites it accepts ({{alg-tokens}}), the mandatory suite of {{TACRA}} among them, and the Attester generates its CEK for one of them.
 
@@ -517,7 +525,7 @@ This profile accepts that, and {{security}} states the consequence.
 Upon receiving AttestedRetrievalRequest, the EST Server MUST:
 
 1. Validate syntax, media type, and size limits.
-2. Check that a Secret Vault serves this `target` and `credential_type`, and that the `mode` that `attest-initiate` reports for them ({{initiation-response}}) is `retrieve`. Refuse the request with 400 Bad Request when a Credential Authority serves them.
+2. Check that a Secret Vault serves this `target` and `credential_type`, and that the `mode` the EST Server's configuration sets for them, which `attest-initiate` reports ({{initiation-response}}), is `retrieve`. Refuse the request with 400 Bad Request when a Credential Authority serves them.
 3. For `present-nonce`, correlate `handle` with the `attest-initiate` that returned it, as in Enrollment. Refuse the request with 400 Bad Request when no `attest-initiate` returned this Handle, when it has expired or was used before, or when its `target` or `freshness_kind` differ from the corresponding `attest-initiate`. Refuse it likewise when `credential_type` is carried on one leg and not the other, or with another value. A `present-nonce` Handle is single-use. For `present-epoch`, `handle` is the epoch marker that every `attest-initiate` of the epoch returned for this `target`, and it serves all requests during that epoch. Refuse the request with 400 Bad Request when the marker has moved. For the `absent-*` Freshness Kinds no Handle was returned, and the RATS Relying Party checks the freshness element under the Freshness Kind its policy sets for the Target ({{TACRA}}). This correlation keeps the two legs of one exchange together at the EST Server. It is not authorization: the Secret Vault takes the Freshness Kind from its policy for the Target, recomputes the digest and decides ({{TACRA}}).
 4. Passport: forward Evidence to the Verifier and obtain Attestation Results. Background Check: skip this step; the Secret Vault obtains Attestation Results itself.
 5. Forward Attestation Results (Passport) or Evidence (Background Check) to the Secret Vault, which computes group_id, authorizes, fetches the bundle and seals it to CEKpub ({{bundle}}).
@@ -528,7 +536,7 @@ A variant in which the EST Server receives a plaintext secret from the Secret Va
 
 # Error Handling {#errors}
 
-An error response carries one of the status codes below, and a human-readable body as a simpleenroll error does (Section 4.2.3 of {{RFC7030}}, updated by Section 5.1 of {{RFC8951}}):
+An error response carries one of the status codes below, and a human-readable body of media type `text/plain`, as a simpleenroll error does (Section 4.2.3 of {{RFC7030}}, updated by Section 5.1 of {{RFC8951}}):
 
 * 400 Bad Request: a request that does not match its definition ({{cddl}}), or an `attest-initiate` with no `target`. A binding digest that does not recompute ({{est-binding}}). A `present-nonce` Handle that no `attest-initiate` returned, that has expired or was used before, or a `present-epoch` marker that has moved. A Credential Hint the policy does not know and does not ignore. A request that differs from the `attest-initiate` that returned its Handle, or one to the resource of the other `mode` ({{enrollment-processing}}, {{retrieval-processing}})
 * 401 Unauthorized: missing/invalid authentication required by deployment policy
@@ -536,7 +544,7 @@ An error response carries one of the status codes below, and a human-readable bo
 * 404 Not Found: a `target` the EST Server does not serve (Section 15.5.5 of {{RFC9110}}: the query is part of the target URI, and a request of the second leg names the same `target`)
 * 406 Not Acceptable: a `credential_type` the RATS Relying Party does not serve for the `target` (Section 15.5.7 of {{RFC9110}}). The body names the Credential Types it serves for that `target`
 * 413 Content Too Large: a request larger than the server takes (Section 15.5.14 of {{RFC9110}})
-* 415 Unsupported Media Type: a request not of the resource's media type ({{media-types}}), or Evidence of a format that is not accepted
+* 415 Unsupported Media Type: a request not of the resource's media type ({{media-types}}), or Evidence of a format that is not accepted, a `profile` the `attest-initiate` response did not list among them
 * 429 Too Many Requests: rate limiting (Section 4 of {{RFC6585}})
 * 500 Internal Server Error: internal error
 * 502 Bad Gateway: the RATS Relying Party did not answer, or answered with a message the EST Server cannot pass on
@@ -799,7 +807,8 @@ Change controller:
 
 These examples are informative.
 They are exchanges recorded on 29 October 2026 between an EST Client and an EST Server that implement this profile, on an AMD SEV-SNP guest, with the mandatory CEK suite.
-The Targets, the Handles and the structures are as they crossed the wire.
+The Targets, the Handles and the structures are as they crossed the wire, with long base64url values shortened to their first 24 characters.
+An EST Server that uses a path segment of Section 3.2.2 of {{RFC7030}} serves the same resources under it, `/.well-known/est/arbitraryLabel1/attest-initiate` for instance.
 The base64url values are cut to their first 24 characters and marked `...`, and the Host header names the EST Server as this document's examples do.
 Lines longer than 69 characters are folded as {{RFC8792}} describes.
 
@@ -854,7 +863,6 @@ Content-Type: application/est-attest-enroll+json
 
 HTTP/1.1 200 OK
 Content-Type: application/pkcs7-mime; smime-type=certs-only
-Content-Transfer-Encoding: base64
 
 MIICswYJKoZIhvcNAQcCoIICpDCCAqACAQExADAL...
 ~~~
@@ -925,7 +933,7 @@ Content-Type: application/est-attest-bundle+json
   "aad": {
     "group_id": "0156b1ec5fc72a6ccc6c04b33e23cb114c9e19979cd3fe68bdd\
     7e9495544a46c",
-    "target": "https://ledger-nonce.tacra.example",
+    "target": "aHR0cHM6Ly9sZWRnZXItbm9uY2UudGFjcmEuZXhhbXBsZQ",
     "handle": "JRAAJxYwTJ-tsqU1Kqk_PQpA...",
     "credential_hint": "payments.workload.tacra.example"
   }
