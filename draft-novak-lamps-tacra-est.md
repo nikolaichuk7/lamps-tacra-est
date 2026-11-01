@@ -284,7 +284,8 @@ Two LAMPS documents cover parts of the exchange defined here.
 {{ATTESTATION-FRESHNESS}} defines a nonce request and response for certificate management protocols, including an EST resource at `/.well-known/est/nonce` (GET, or POST with `application/est-attestation-freshness+json`) whose response carries a `nonce` of 8 to 64 bytes and an OPTIONAL `expiry` in seconds (Section 5.1 of {{ATTESTATION-FRESHNESS}}).
 `attest-initiate` ({{attest-initiate}}) is the first leg that returns the Freshness Handle: such a nonce for `present-nonce`, the current epoch marker for `present-epoch`, and none for the `absent-*` kinds.
 It returns in addition the Freshness Kind itself, the Credential Acquisition Mode and the acceptable CSK or CEK algorithms ({{initiation-response}}), none of which the nonce resource carries.
-A `present-nonce` Handle of this profile is a nonce as {{TACRA}} and Section 5.1 of {{ATTESTATION-FRESHNESS}} specify: 8 to 64 octets, at least 64 bits of entropy, issued once and not reused.
+A `present-nonce` Handle of this profile is a nonce as {{TACRA}} specifies: 16 to 64 octets, at least 128 bits of entropy, issued once and not reused.
+That range lies within the 8 to 64 octets of Section 5.1 of {{ATTESTATION-FRESHNESS}}.
 `expires_in` is that document's `expiry`.
 That section requires the server to associate the nonce with the subsequent request.
 This profile does so by correlating the Handle with the `attest-initiate` that returned it, in the server processing of both modes, and by the RATS Relying Party's recomputation of the digest that carries the Handle ({{est-binding}}).
@@ -345,7 +346,7 @@ Fields:
     * `absent-epoch`: embed an epoch marker already held locally
     * `present-nonce`: single-use Freshness Handle; embed it in Evidence
     * `present-epoch`: current epoch marker as Freshness Handle; embed it in Evidence; retry `attest-initiate` if the epoch moved
-* `handle` (bytes, 8 to 64 octets): Freshness Handle, REQUIRED for `present-nonce` and `present-epoch`, and MUST be absent otherwise ({{attest-initiate}}). A `present-nonce` Handle is a nonce as {{TACRA}} and Section 5.1 of {{ATTESTATION-FRESHNESS}} specify: at least 64 bits of entropy, issued once and not reused
+* `handle` (bytes, 8 to 64 octets): Freshness Handle, REQUIRED for `present-nonce` and `present-epoch`, and MUST be absent otherwise ({{attest-initiate}}). A `present-nonce` Handle is a nonce as {{TACRA}} specifies: 16 to 64 octets, at least 128 bits of entropy, issued once and not reused
 * `expires_in` (integer, OPTIONAL): seconds until a `present-nonce` or `present-epoch` Handle is no longer valid, the `expiry` of {{ATTESTATION-FRESHNESS}}
 * `max_age` (integer, OPTIONAL): for `absent-timestamp`, the maximum Evidence age in seconds acceptable to the Verifier or RATS Relying Party
 * `mode` (string, REQUIRED): `enroll` or `retrieve`
