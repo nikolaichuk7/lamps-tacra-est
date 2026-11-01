@@ -376,7 +376,7 @@ The three octet strings of that construction are, in this profile:
 * `freshness`: the freshness element of the request, the octets of `handle`. For `present-nonce` and `present-epoch` that is the Freshness Handle `attest-initiate` returned. For `absent-epoch` it is the epoch marker the Attester holds. For `absent-timestamp` it is the Attester's timestamp, 8 octets, as {{TACRA}} encodes it. For `absent-none` it is empty, and `handle` is absent.
 * `target`: the octets of the `target` member, the Target octet string of {{TACRA}}, neither recoded nor normalized.
   The member carries the same string as the Target of the `attest-initiate`, on the wire or completed locally.
-* `subject`: for Enrollment, the DER encoding of the PKCS#10 CSR, the octets of `csr`. For Retrieval, CEKpub as the request carries it, the octets of `cek_pub`, in the encoding of its KEM ({{TACRA}}).
+* `subject`: for Enrollment, the DER encoding of the PKCS#10 CSR, the octets of `csr`. For Retrieval, CEKpub as the request carries it, the octets of `cek_pub`, in the encoding of its KEM in Section "Sealing the Released Credential" of {{TACRA}}.
 
 The digest is SHA-512, as {{TACRA}} sets for a freshness input of 64 octets, which REPORT_DATA of AMD SEV-SNP and REPORTDATA of Intel TDX are.
 A platform whose freshness input is not 64 octets is outside this document's mandatory method.
@@ -485,7 +485,7 @@ Fields:
 * freshness_kind (string, REQUIRED): MUST match the preceding `attest-initiate` response, or the configuration under which the EST Client completed `attest-initiate` locally ({{attest-initiate}})
 * handle (bytes): the freshness element ({{est-binding}}) - REQUIRED when `freshness_kind` is not `absent-none` and MUST be absent otherwise. For `present-nonce` and `present-epoch` it MUST equal the Freshness Handle returned by `attest-initiate`. For `absent-timestamp` it is the 8-octet timestamp and for `absent-epoch` the locally held epoch marker. Its size is 16 to 64 octets for `present-nonce`, 8 to 64 for `present-epoch` and `absent-epoch`, and 8 for `absent-timestamp` ({{cddl}}).
 * evidence (bytes, REQUIRED) -- MUST include CEKpub; MUST be bound to the Freshness returned by `attest-initiate`, if any
-* cek_pub (bytes, REQUIRED): CEKpub in the encoding of its KEM ({{TACRA}}), to which the Secret Vault seals the bundle
+* cek_pub (bytes, REQUIRED): CEKpub in the encoding of its KEM in Section "Sealing the Released Credential" of {{TACRA}}, to which the Secret Vault seals the bundle
 * profile (string, OPTIONAL): the media type of `evidence`, one of the `acceptable_evidence` of the `attest-initiate` ({{initiation-response}}). It MUST be absent when that response carried no `acceptable_evidence` or `attest-initiate` was completed locally, and MUST be one of the listed tokens otherwise. The EST Server refuses another value with 415 Unsupported Media Type, as a format it does not accept. If absent, the EST Server forwards the Evidence as it is, and the Verifier recognizes its format. A format the EST Server does not accept is refused with 415 Unsupported Media Type
 * binding (object, REQUIRED): declares how CEKpub is bound to Evidence
 * credential_type (string, OPTIONAL): one of the tokens of {{credential-type}}. If absent, the client takes what the Secret Vault releases
