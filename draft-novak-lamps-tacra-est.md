@@ -325,7 +325,7 @@ As each EST message type has its own media type (Section 3.2.4 of {{RFC7030}}), 
 
 A client MUST send a POST of the resource's media type.
 An `attest-initiate` GET has no body; the client SHOULD set Accept to `application/est-attest-initiate+json`.
-An `attest-initiate` GET for `present-nonce` is not idempotent: each one mints a Handle, as the nonce resource of {{ATTESTATION-FRESHNESS}} does.
+An `attest-initiate` GET for `present-nonce` is not idempotent: each one returns a Handle its originator issued anew, as the nonce resource of {{ATTESTATION-FRESHNESS}} does.
 An EST Server responds to a request of another media type with 415 (Unsupported Media Type) and SHOULD name the resource's media type in an Accept header field (Section 15.5.16 of {{RFC9110}}).
 
 ## Message Definitions {#cddl}
