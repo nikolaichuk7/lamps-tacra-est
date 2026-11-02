@@ -351,13 +351,13 @@ Fields:
     * `absent-epoch`: embed an epoch marker already held locally
     * `present-nonce`: single-use Freshness Handle; embed it in Evidence
     * `present-epoch`: current epoch marker as Freshness Handle; embed it in Evidence; retry `attest-initiate` if the epoch moved
-* `handle` (bytes, 8 to 64 octets): Freshness Handle, REQUIRED for `present-nonce` and `present-epoch`, and MUST be absent otherwise ({{attest-initiate}}). A `present-nonce` Handle is a nonce as {{TACRA}} specifies: 16 to 64 octets, at least 128 bits of entropy, issued once and not reused
+* `handle` (bytes, 16 to 64 octets for `present-nonce`, 8 to 64 for `present-epoch`): Freshness Handle, REQUIRED for `present-nonce` and `present-epoch`, and MUST be absent otherwise ({{attest-initiate}}). A `present-nonce` Handle is a nonce as {{TACRA}} specifies: 16 to 64 octets, at least 128 bits of entropy, issued once and not reused
 * `expires_in` (integer, OPTIONAL): seconds until a `present-nonce` or `present-epoch` Handle is no longer valid, the `expiry` of {{ATTESTATION-FRESHNESS}}. The Handle originator SHOULD NOT set it below 60 seconds ({{TACRA}})
 * `max_age` (integer, OPTIONAL): for `absent-timestamp`, the maximum Evidence age in seconds acceptable to the Verifier or RATS Relying Party
 * `mode` (string, REQUIRED): `enroll` or `retrieve`
 * `acceptable_cek` (array, REQUIRED when `mode` is `retrieve` and absent otherwise): the CEK suites the Secret Vault accepts, tokens of {{alg-tokens}}, at least one
 * `acceptable_csk` (array, REQUIRED when `mode` is `enroll` and absent otherwise): the CSK algorithms the Credential Authority accepts, tokens of {{alg-tokens}}, at least one
-* `acceptable_evidence` (array, OPTIONAL): the Evidence formats the EST Server forwards, each named by its media type ({{alg-tokens}}). A request of the second leg MAY name the format of its Evidence in `profile`, one of them. When the list is absent, or `attest-initiate` was completed locally, the EST Client sends no `profile`
+* `acceptable_evidence` (array, OPTIONAL): the Evidence formats the EST Server forwards, each named by its media type ({{alg-tokens}}). A request of the second leg MUST name the format of its Evidence in `profile`, one of them. When the list is absent, or `attest-initiate` was completed locally, the EST Client sends no `profile`
 
 For `present-nonce`, the Freshness Handle originator MUST ensure uniqueness and MUST correlate the second-leg request with the Handle from this `attest-initiate`.
 For `present-epoch`, it checks that the Handle is still the current epoch marker ({{TACRA}}).
@@ -770,7 +770,7 @@ Security considerations:
 : See {{security}} of this document.
 
 Interoperability considerations:
-: The response of `attest-retrieve`, the EncryptedCredentialBundle ({{bundle}}).
+: The response of `attest-retrieve`, the EncryptedCredentialBundle ({{bundle}}). The JSON object is the `encrypted-credential-bundle` that {{TACRA}} specifies.
 
 Published specification:
 : This document.
@@ -806,9 +806,9 @@ Change controller:
 
 These examples are informative.
 They are exchanges recorded on 29 October 2026 between an EST Client and an EST Server that implement this profile, on an AMD SEV-SNP guest, with the mandatory CEK suite.
-The Targets, the Handles and the structures are as they crossed the wire, with long base64url values shortened to their first 24 characters.
+The Targets, the Handles and the structures are as they crossed the wire, with long base64url values shortened to their first 24 characters and marked `...`.
 An EST Server that uses a path segment of Section 3.2.2 of {{RFC7030}} serves the same resources under it, `/.well-known/est/arbitraryLabel1/attest-initiate` for instance.
-The base64url values are cut to their first 24 characters and marked `...`, and the Host header names the EST Server as this document's examples do.
+The Host header names the EST Server as this document's examples do.
 Lines longer than 69 characters are folded as {{RFC8792}} describes.
 
 ## attest-initiate for Enrollment {#ex-initiate-enroll}
