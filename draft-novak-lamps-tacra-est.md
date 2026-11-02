@@ -87,7 +87,7 @@ informative:
 
 --- abstract
 
-This document specifies extensions to Enrollment over Secure Transport (EST) that realize the Trustworthy Acquisition of Credentials via Remote Attestation (TACRA) architecture {{TACRA}}.
+This document specifies extensions to Enrollment over Secure Transport (EST) that realize the Trustworthy Acquisition of Credentials via Remote Attestation (TACRA) architecture.
 Remote Attestation Procedures (RATS) are used as an authorization input for workload credential provisioning.
 
 Two modes are defined:
