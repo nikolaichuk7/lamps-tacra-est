@@ -254,7 +254,7 @@ The first leg of both modes is where the Attester initiates Remote Attestation b
 * Request: no body; query parameters `target` (REQUIRED) and `credential_type` (OPTIONAL)
 * Success: 200 OK
 * Response: AttestationInitiationResponse ({{initiation-response}}): Freshness kind, Credential Acquisition Mode (`enroll` or `retrieve`), acceptable ciphers
-* Error: 400 when `target` is absent, 404 when the EST Server does not serve that Target, 406 when the RATS Relying Party does not serve that `credential_type` for it ({{errors}})
+* Error: 400 when `target` is absent or `credential_type` is not a token of {{credential-type}}, 404 when the EST Server does not serve that Target, 403 when the RATS Relying Party does not serve that Credential Type for it ({{errors}})
 
 Query parameters:
 
@@ -264,6 +264,8 @@ Query parameters:
   The EST Server decodes it and compares the octets.
 * `credential_type`: the Credential Type the Attester plans to use with this Target ({{credential-type}}).
   If omitted, the EST Server returns the mode and algorithms its policy sets for the Target.
+  The second leg then MAY omit `credential_type` or name the Credential Type those imply.
+  When `attest-initiate` named one, the second leg of the same `present-nonce` exchange MUST name the same token ({{enrollment-processing}}, {{retrieval-processing}}).
 
 * If the EST Client already knows all the information the Attester needs to proceed, i.e., it is already configured for an absent Freshness kind (`absent-timestamp`, `absent-none`, or `absent-epoch`), and it knows what Credential Acquisition Mode is expected, and which ciphers to use, it MAY complete `attest-initiate` locally and, in that case, MUST NOT contact the EST Server.
 * The EST Server, if contacted, obtains the Freshness Kind and Handle, if any, from the configured Verifier or RATS Relying Party and returns that result.
@@ -337,7 +339,7 @@ As each EST message type has its own media type (Section 3.2.4 of {{RFC7030}}), 
 
 A client MUST send a POST of the resource's media type.
 An `attest-initiate` GET has no body; the client SHOULD set Accept to `application/est-attest-initiate+json`.
-An `attest-initiate` GET for `present-nonce` is not idempotent: each one mints a Handle, as the nonce resource of {{ATTESTATION-FRESHNESS}} does.
+An `attest-initiate` GET for `present-nonce` is not idempotent: each one returns a Handle its originator issued anew, as the nonce resource of {{ATTESTATION-FRESHNESS}} does.
 An EST Server responds to a request of another media type with 415 (Unsupported Media Type) and SHOULD name the resource's media type in an Accept header field (Section 15.5.16 of {{RFC9110}}).
 
 ## Message Definitions {#cddl}
@@ -363,7 +365,7 @@ Fields:
     * `absent-epoch`: embed an epoch marker already held locally
     * `present-nonce`: single-use Freshness Handle; embed it in Evidence
     * `present-epoch`: current epoch marker as Freshness Handle; embed it in Evidence; retry `attest-initiate` if the epoch moved
-* `handle` (bytes, 8 to 64 octets): Freshness Handle, REQUIRED for `present-nonce` and `present-epoch`, and MUST be absent otherwise ({{attest-initiate}}).
+* `handle` (bytes, 16 to 64 octets for `present-nonce`, 8 to 64 for `present-epoch`): Freshness Handle, REQUIRED for `present-nonce` and `present-epoch`, and MUST be absent otherwise ({{attest-initiate}}).
   A `present-nonce` Handle is a nonce as {{TACRA}} specifies: 16 to 64 octets, at least 128 bits of entropy, issued once and not reused.
 * `expires_in` (integer, OPTIONAL): seconds until a `present-nonce` or `present-epoch` Handle is no longer valid, the `expiry` of {{ATTESTATION-FRESHNESS}}.
   The Handle originator SHOULD NOT set it below 60 seconds ({{TACRA}}).
@@ -372,7 +374,7 @@ Fields:
 * `acceptable_cek` (array, REQUIRED when `mode` is `retrieve` and absent otherwise): the CEK suites the Secret Vault accepts, tokens of {{alg-tokens}}, at least one
 * `acceptable_csk` (array, REQUIRED when `mode` is `enroll` and absent otherwise): the CSK algorithms the Credential Authority accepts, tokens of {{alg-tokens}}, at least one
 * `acceptable_evidence` (array, OPTIONAL): the Evidence formats the EST Server forwards, each named by its media type ({{alg-tokens}}).
-  A request of the second leg MAY name the format of its Evidence in `profile`, one of them.
+  A request of the second leg MUST name the format of its Evidence in `profile`, one of them.
   When the list is absent, or `attest-initiate` was completed locally, the EST Client sends no `profile`
 
 For `present-nonce`, the Freshness Handle originator MUST ensure uniqueness and MUST correlate the second-leg request with the Handle from this `attest-initiate`.
@@ -432,13 +434,14 @@ A Credential Authority or Secret Vault that does not recognize `method` refuses 
   Retrieval only, under the conditions of {{security}}.
 
 `attest-enroll` mints `x509` or `wic`.
-A `credential_type` other than these on `attest-enroll` is a Credential Type the RATS Relying Party does not serve, and the EST Server refuses the request with 406 Not Acceptable ({{errors}}).
+A `credential_type` other than these on `attest-enroll` is a Credential Type the RATS Relying Party does not serve, and the EST Server refuses the request with 403 Forbidden ({{errors}}).
 When `credential_type` is absent, on `attest-enroll` and on `attest-retrieve` alike, the client takes what the RATS Relying Party issues or releases under its policy.
 A client that needs a Credential Type names it.
 `attest-retrieve` MAY carry any token above.
 The Secret Vault selects what it releases from the Attestation Results, its policy and the Credential Hint.
 Where the request names a `credential_type`, it releases that Credential Type or refuses the request.
-A Credential Type the RATS Relying Party does not serve is refused with 406 Not Acceptable, and the response names the Credential Types it serves for that `target` ({{errors}}).
+A Credential Type the RATS Relying Party does not serve is refused with 403 Forbidden, and the response names the Credential Types it serves for that `target` ({{errors}}).
+A `credential_type` that is not a token of this section is refused with 400 Bad Request.
 
 
 ## Protocol Tokens {#alg-tokens}
@@ -489,6 +492,7 @@ Fields:
 * binding (object, REQUIRED): declares how the CSR key is bound to Evidence
 * credential_type (string, OPTIONAL): `x509` or `wic` ({{credential-type}}).
   If absent, the client takes what the Credential Authority mints.
+  When the `attest-initiate` of a `present-nonce` exchange named a `credential_type`, this member MUST carry the same token ({{enrollment-processing}}).
 * credential_hint (string, OPTIONAL): Credential Hint supplied by the Attester; the Credential Authority MAY use it, ignore it, or reject the request
 
 ### Response (Success)
@@ -513,11 +517,13 @@ Upon receiving AttestedEnrollmentRequest, the EST Server MUST:
   Refuse the request with 400 Bad Request when a Secret Vault serves them.
 3. For `present-nonce`, correlate `handle` with the `attest-initiate` that returned it.
   Refuse the request with 400 Bad Request when no `attest-initiate` returned this Handle, when it has expired or was used before, or when its `target` or `freshness_kind` differ from the corresponding `attest-initiate`.
-  Refuse it likewise when `credential_type` is carried on one leg and not the other, or with another value.
+  Refuse it likewise when that `attest-initiate` named a `credential_type` and the request omits it or names another token.
+  A request MAY name a `credential_type` its `attest-initiate` omitted, the one the mode and the algorithms returned imply.
   A `present-nonce` Handle is single-use.
   For `present-epoch`, `handle` is the epoch marker that every `attest-initiate` of the epoch returned for this `target`, and it serves all requests during that epoch.
   Refuse the request with 400 Bad Request when the marker has moved.
   For the `absent-*` Freshness Kinds no Handle was returned, and the RATS Relying Party checks the freshness element under the Freshness Kind its policy sets for the Target ({{TACRA}}).
+  For `present-epoch` and the `absent-*` Freshness Kinds the EST Server does not correlate `credential_type` and forwards it to the RATS Relying Party, which decides under its policy ({{credential-type}}).
   This correlation keeps the two legs of one exchange together at the EST Server.
   It is not authorization: the Credential Authority takes the Freshness Kind from its policy for the Target, recomputes the digest and decides ({{TACRA}}).
 4. Passport: forward Evidence to the Verifier and obtain Attestation Results.
@@ -549,6 +555,7 @@ Fields:
 * binding (object, REQUIRED): declares how CEKpub is bound to Evidence
 * credential_type (string, OPTIONAL): one of the tokens of {{credential-type}}.
   If absent, the client takes what the Secret Vault releases.
+  When the `attest-initiate` of a `present-nonce` exchange named a `credential_type`, this member MUST carry the same token ({{retrieval-processing}}).
 * credential_hint (string, OPTIONAL): Credential Hint supplied by the Attester; the RATS Relying Party (Secret Vault or Credential Authority) MAY use it, ignore it, or reject the request
 
 ### Evidence-to-CEK Binding {#evidence-to-cek}
@@ -589,11 +596,13 @@ Upon receiving AttestedRetrievalRequest, the EST Server MUST:
   Refuse the request with 400 Bad Request when a Credential Authority serves them.
 3. For `present-nonce`, correlate `handle` with the `attest-initiate` that returned it, as in Enrollment.
   Refuse the request with 400 Bad Request when no `attest-initiate` returned this Handle, when it has expired or was used before, or when its `target` or `freshness_kind` differ from the corresponding `attest-initiate`.
-  Refuse it likewise when `credential_type` is carried on one leg and not the other, or with another value.
+  Refuse it likewise when that `attest-initiate` named a `credential_type` and the request omits it or names another token.
+  A request MAY name a `credential_type` its `attest-initiate` omitted, the one the mode and the algorithms returned imply.
   A `present-nonce` Handle is single-use.
   For `present-epoch`, `handle` is the epoch marker that every `attest-initiate` of the epoch returned for this `target`, and it serves all requests during that epoch.
   Refuse the request with 400 Bad Request when the marker has moved.
   For the `absent-*` Freshness Kinds no Handle was returned, and the RATS Relying Party checks the freshness element under the Freshness Kind its policy sets for the Target ({{TACRA}}).
+  For `present-epoch` and the `absent-*` Freshness Kinds the EST Server does not correlate `credential_type` and forwards it to the RATS Relying Party, which decides under its policy ({{credential-type}}).
   This correlation keeps the two legs of one exchange together at the EST Server.
   It is not authorization: the Secret Vault takes the Freshness Kind from its policy for the Target, recomputes the digest and decides ({{TACRA}}).
 4. Passport: forward Evidence to the Verifier and obtain Attestation Results.
@@ -609,15 +618,16 @@ A variant in which the EST Server receives a plaintext secret from the Secret Va
 An error response carries one of the status codes below, and a human-readable body of media type `text/plain`, as a simpleenroll error does (Section 4.2.3 of {{RFC7030}}, updated by Section 5.1 of {{RFC8951}}):
 
 * 400 Bad Request: a request that does not match its definition ({{cddl}}), or an `attest-initiate` with no `target`.
+  A `credential_type` that is not a token of {{credential-type}}.
+  A `present-nonce` request whose `credential_type` is not the one its `attest-initiate` named.
   A binding digest that does not recompute ({{est-binding}}).
   A `present-nonce` Handle that no `attest-initiate` returned, that has expired or was used before, or a `present-epoch` marker that has moved.
   A Credential Hint the policy does not know and does not ignore.
   A request that differs from the `attest-initiate` that returned its Handle, or one to the resource of the other `mode` ({{enrollment-processing}}, {{retrieval-processing}}).
 * 401 Unauthorized: missing/invalid authentication required by deployment policy
-* 403 Forbidden, forwarded from the RATS Relying Party: attestation failed, or its policy denies enrollment or retrieval, the Credential Hint included
+* 403 Forbidden, forwarded from the RATS Relying Party: attestation failed, its policy denies enrollment or retrieval, the Credential Hint included, or it does not serve the `credential_type` for the `target`.
+  In the last case the body names the Credential Types it serves for that `target`.
 * 404 Not Found: a `target` the EST Server does not serve (Section 15.5.5 of {{RFC9110}}: the query is part of the target URI, and a request of the second leg names the same `target`)
-* 406 Not Acceptable: a `credential_type` the RATS Relying Party does not serve for the `target` (Section 15.5.7 of {{RFC9110}}).
-  The body names the Credential Types it serves for that `target`.
 * 413 Content Too Large: a request larger than the server takes (Section 15.5.14 of {{RFC9110}})
 * 415 Unsupported Media Type: a request not of the resource's media type ({{media-types}}), or Evidence of a format that is not accepted, a `profile` the `attest-initiate` response did not list among them
 * 429 Too Many Requests: rate limiting (Section 4 of {{RFC6585}})
@@ -669,7 +679,7 @@ Servers MAY provide a correlation identifier for debugging.
 * The EST Server SHOULD enforce size and rate limits on Evidence.
 * The Credential Type and the Credential Hint are not in the binding.
   The RATS Relying Party decides by its policy what it issues or releases for them.
-  The EST Server's correlation of a Handle with its `attest-initiate` only checks that the second leg repeats the same `credential_type`, and authorizes nothing ({{TACRA}}).
+  The EST Server's correlation of a `present-nonce` Handle with its `attest-initiate` only checks that the second leg does not change a `credential_type` the `attest-initiate` named, and authorizes nothing ({{TACRA}}).
 * If classic EST and attested resources both exist, the RATS Relying Party MUST be able to require attestation.
   The EST Server MUST NOT substitute a classic EST operation for an attested request.
 
@@ -864,6 +874,7 @@ Security considerations:
 
 Interoperability considerations:
 : The response of `attest-retrieve`, the EncryptedCredentialBundle ({{bundle}}).
+  The JSON object is the `encrypted-credential-bundle` that {{TACRA}} specifies.
 
 Published specification:
 : This document.
@@ -899,9 +910,9 @@ Change controller:
 
 These examples are informative.
 They are exchanges recorded on 29 October 2026 between an EST Client and an EST Server that implement this profile, on an AMD SEV-SNP guest, with the mandatory CEK suite.
-The Targets, the Handles and the structures are as they crossed the wire, with long base64url values shortened to their first 24 characters.
+The Targets, the Handles and the structures are as they crossed the wire, with long base64url values shortened to their first 24 characters and marked `...`.
 An EST Server that uses a path segment of Section 3.2.2 of {{RFC7030}} serves the same resources under it, `/.well-known/est/arbitraryLabel1/attest-initiate` for instance.
-The base64url values are cut to their first 24 characters and marked `...`, and the Host header names the EST Server as this document's examples do.
+The Host header names the EST Server as this document's examples do.
 Lines longer than 69 characters are folded as {{RFC8792}} describes.
 
 ## attest-initiate for Enrollment {#ex-initiate-enroll}
